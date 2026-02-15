@@ -261,6 +261,11 @@ async function clearCache(): Promise<void> {
   return TrackPlayer.clearCache()
 }
 
+async function getAudioSessionId(): Promise<number> {
+  if (!isSetupedPlayer) return -1
+  return TrackPlayer.getAudioSessionId()
+}
+
 export default {
   // MARK: - General API
   setupPlayer,
@@ -306,5 +311,6 @@ export default {
   getRepeatMode,
   isCached,
   getCacheSize,
-  clearCache
+  clearCache,
+  getAudioSessionId
 }
