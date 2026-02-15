@@ -404,4 +404,11 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
     public void onMetadata(@NonNull Metadata metadata) {
         SourceMetadata.handleMetadata(manager, metadata);
     }
+
+    /**
+     * Get the audio session ID for the current playback.
+     * This can be used by audio visualization or audio effects.
+     * @return the audio session ID, or C.AUDIO_SESSION_ID_UNSET if not available
+     */
+    public abstract int getAudioSessionId();
 }

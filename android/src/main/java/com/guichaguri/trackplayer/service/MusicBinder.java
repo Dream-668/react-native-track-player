@@ -76,6 +76,14 @@ public class MusicBinder extends Binder {
         return manager.getMetadata().getRatingType();
     }
 
+    public int getAudioSessionId() {
+        ExoPlayback playback = manager.getPlayback();
+        if (playback != null) {
+            return playback.getAudioSessionId();
+        }
+        return androidx.media3.common.C.AUDIO_SESSION_ID_UNSET;
+    }
+
     public void destroy() {
         service.destroy();
         service.stopSelf();

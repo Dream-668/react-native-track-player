@@ -265,4 +265,9 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
             }
         }
     }
+
+    @Override
+    public int getAudioSessionId() {
+        return player.getAudioSessionId();
+    }
 }
