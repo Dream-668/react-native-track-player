@@ -243,6 +243,30 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
         player.setPlaybackParameters(new PlaybackParameters(rate, player.getPlaybackParameters().pitch));
     }
 
+    public float getPitch() {
+        return player.getPlaybackParameters().pitch;
+    }
+
+    public void setPitch(float pitch) {
+        player.setPlaybackParameters(new PlaybackParameters(player.getPlaybackParameters().speed, pitch));
+    }
+
+    public float[] getEqualizerBandLevel() {
+        return new float[0];
+    }
+
+    public void setEqualizerBandLevel(float[] levels) {
+        // No-op by default; overridden in LocalPlayback
+    }
+
+    public float getCrossfadeDuration() {
+        return 0f;
+    }
+
+    public void setCrossfadeDuration(float seconds) {
+        // No-op by default; overridden in LocalPlayback
+    }
+
     public int getState() {
         switch(player.getPlaybackState()) {
             case Player.STATE_BUFFERING:
@@ -405,10 +429,5 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
         SourceMetadata.handleMetadata(manager, metadata);
     }
 
-    /**
-     * Get the audio session ID for the current playback.
-     * This can be used by audio visualization or audio effects.
-     * @return the audio session ID, or C.AUDIO_SESSION_ID_UNSET if not available
-     */
     public abstract int getAudioSessionId();
 }

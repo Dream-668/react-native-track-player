@@ -1,12 +1,17 @@
 package com.guichaguri.trackplayer.service.player;
 
 import android.content.Context;
+import android.media.audiofx.Equalizer;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import com.facebook.react.bridge.Promise;
+import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.MediaItem;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.database.DatabaseProvider;
 import androidx.media3.database.StandaloneDatabaseProvider;
@@ -39,6 +44,20 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
     private SimpleCache cache;
     private boolean prepared = false;
+    private Equalizer equalizer;
+    private float[] pendingEqualizerLevels;
+    private short equalizerNumBands;
+    private short[] equalizerBandLevelRange;
+
+    // Crossfade
+    private long crossfadeDurationMs = 0;
+    private float basePlayerVolume = 1.0f;
+    private boolean fadingOut = false;
+    private final Handler fadeHandler = new Handler(Looper.getMainLooper());
+    private Runnable positionCheckRunnable;
+    private Runnable fadeRunnable;
+    private static final int FADE_INTERVAL_MS = 50;
+    private static final int POSITION_CHECK_INTERVAL_MS = 100;
     public LocalPlayback(Context context, MusicManager manager, ExoPlayer player, long maxCacheSize,
                          boolean autoUpdateMetadata) {
         super(context, manager, player, autoUpdateMetadata);
@@ -56,6 +75,22 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
         }
 
         super.initialize();
+
+        int audioSessionId = player.getAudioSessionId();
+        if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+            try {
+                equalizer = new Equalizer(0, audioSessionId);
+                equalizer.setEnabled(true);
+                equalizerNumBands = equalizer.getNumberOfBands();
+                equalizerBandLevelRange = equalizer.getBandLevelRange();
+                if (pendingEqualizerLevels != null) {
+                    applyEqualizerLevels(pendingEqualizerLevels);
+                    pendingEqualizerLevels = null;
+                }
+            } catch (Exception e) {
+                Log.e(Utils.LOG, "Failed to create equalizer", e);
+            }
+        }
 
         resetQueue();
     }
@@ -202,22 +237,35 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     public void play() {
         prepare();
         super.play();
+        if (crossfadeDurationMs > 0) startPositionMonitor();
+    }
+
+    @Override
+    public void pause() {
+        cancelFades();
+        super.pause();
+        stopPositionMonitor();
     }
 
     @Override
     public void stop() {
+        cancelFades();
         super.stop();
+        stopPositionMonitor();
         prepared = false;
     }
 
     @Override
     public void seekTo(long time) {
+        if (crossfadeDurationMs > 0) cancelFades();
         prepare();
         super.seekTo(time);
     }
 
     @Override
     public void reset() {
+        cancelFades();
+        stopPositionMonitor();
         Integer track = getCurrentTrackIndex();
         long position = player.getCurrentPosition();
 
@@ -234,15 +282,31 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
     @Override
     public void setPlayerVolume(float volume) {
+        basePlayerVolume = volume;
         player.setVolume(volume);
     }
 
     @Override
-    public void onPlaybackStateChanged(int playbackState) {
-        if(playbackState == Player.STATE_ENDED) {
-            prepared = false;
+    public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+        super.onMediaItemTransition(mediaItem, reason);
+        if (crossfadeDurationMs > 0) {
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                startFadeIn();
+            } else {
+                cancelFades();
+            }
         }
+    }
 
+    @Override
+    public void onPlaybackStateChanged(int playbackState) {
+        if (playbackState == Player.STATE_ENDED) {
+            prepared = false;
+            if (crossfadeDurationMs > 0) {
+                cancelFades();
+                stopPositionMonitor();
+            }
+        }
         super.onPlaybackStateChanged(playbackState);
     }
 
@@ -253,7 +317,111 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     }
 
     @Override
+    public float getCrossfadeDuration() {
+        return crossfadeDurationMs / 1000.0f;
+    }
+
+    @Override
+    public void setCrossfadeDuration(float seconds) {
+        crossfadeDurationMs = (long)(seconds * 1000);
+        if (crossfadeDurationMs == 0) {
+            cancelFades();
+            stopPositionMonitor();
+        }
+    }
+
+    private void startPositionMonitor() {
+        stopPositionMonitor();
+        positionCheckRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!fadingOut && player.getPlayWhenReady()) {
+                    long duration = player.getDuration();
+                    long position = player.getCurrentPosition();
+                    if (duration != C.TIME_UNSET && duration > 0) {
+                        long timeRemaining = duration - position;
+                        if (timeRemaining > 0 && timeRemaining <= crossfadeDurationMs) {
+                            startFadeOut(timeRemaining);
+                        }
+                    }
+                }
+                if (crossfadeDurationMs > 0) {
+                    fadeHandler.postDelayed(this, POSITION_CHECK_INTERVAL_MS);
+                }
+            }
+        };
+        fadeHandler.post(positionCheckRunnable);
+    }
+
+    private void stopPositionMonitor() {
+        if (positionCheckRunnable != null) {
+            fadeHandler.removeCallbacks(positionCheckRunnable);
+            positionCheckRunnable = null;
+        }
+    }
+
+    private void startFadeOut(long remainingMs) {
+        fadingOut = true;
+        cancelFadeRunnable();
+
+        final float fromVolume = player.getVolume();
+        final long startTime = System.currentTimeMillis();
+        fadeRunnable = new Runnable() {
+            @Override
+            public void run() {
+                long elapsed = System.currentTimeMillis() - startTime;
+                float fraction = Math.min(1.0f, (float) elapsed / remainingMs);
+                player.setVolume(fromVolume * (1.0f - fraction));
+                if (fraction < 1.0f) {
+                    fadeHandler.postDelayed(this, FADE_INTERVAL_MS);
+                } else {
+                    player.setVolume(0);
+                    fadingOut = false;
+                }
+            }
+        };
+        fadeHandler.post(fadeRunnable);
+    }
+
+    private void startFadeIn() {
+        fadingOut = false;
+        cancelFadeRunnable();
+        player.setVolume(0);
+        final long startTime = System.currentTimeMillis();
+        fadeRunnable = new Runnable() {
+            @Override
+            public void run() {
+                long elapsed = System.currentTimeMillis() - startTime;
+                float fraction = Math.min(1.0f, (float) elapsed / crossfadeDurationMs);
+                player.setVolume(basePlayerVolume * fraction);
+                if (fraction < 1.0f) {
+                    fadeHandler.postDelayed(this, FADE_INTERVAL_MS);
+                } else {
+                    player.setVolume(basePlayerVolume);
+                }
+            }
+        };
+        fadeHandler.post(fadeRunnable);
+        startPositionMonitor();
+    }
+
+    private void cancelFadeRunnable() {
+        if (fadeRunnable != null) {
+            fadeHandler.removeCallbacks(fadeRunnable);
+            fadeRunnable = null;
+        }
+    }
+
+    private void cancelFades() {
+        fadingOut = false;
+        cancelFadeRunnable();
+        player.setVolume(basePlayerVolume);
+    }
+
+    @Override
     public void destroy() {
+        cancelFades();
+        stopPositionMonitor();
         super.destroy();
 
         if(cache != null) {
@@ -264,10 +432,47 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
                 Log.w(Utils.LOG, "Couldn't release the cache properly", ex);
             }
         }
+
+        if (equalizer != null) {
+            try {
+                equalizer.release();
+            } catch (Exception ex) {
+                Log.w(Utils.LOG, "Couldn't release the equalizer properly", ex);
+            }
+            equalizer = null;
+        }
     }
 
     @Override
     public int getAudioSessionId() {
         return player.getAudioSessionId();
+    }
+
+    @Override
+    public float[] getEqualizerBandLevel() {
+        if (equalizer == null) {
+            return pendingEqualizerLevels != null ? pendingEqualizerLevels : new float[0];
+        }
+        float[] levels = new float[equalizerNumBands];
+        for (short i = 0; i < equalizerNumBands; i++) {
+            levels[i] = equalizer.getBandLevel(i) / 100.0f;
+        }
+        return levels;
+    }
+
+    @Override
+    public void setEqualizerBandLevel(float[] levels) {
+        if (equalizer == null) {
+            pendingEqualizerLevels = levels;
+            return;
+        }
+        applyEqualizerLevels(levels);
+    }
+
+    private void applyEqualizerLevels(float[] levels) {
+        for (short i = 0; i < Math.min(levels.length, equalizerNumBands); i++) {
+            short millibel = (short) Math.max(equalizerBandLevelRange[0], Math.min(equalizerBandLevelRange[1], Math.round(levels[i] * 100)));
+            equalizer.setBandLevel(i, millibel);
+        }
     }
 }

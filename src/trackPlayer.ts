@@ -191,6 +191,36 @@ async function setRate(rate: number): Promise<void> {
   return TrackPlayer.setRate(rate)
 }
 
+async function setPitch(pitch: number): Promise<void> {
+  if (!isSetupedPlayer) return Promise.resolve()
+  return TrackPlayer.setPitch(pitch)
+}
+
+async function getPitch(): Promise<number> {
+  if (!isSetupedPlayer) return Promise.resolve(0)
+  return TrackPlayer.getPitch()
+}
+
+async function setEqualizerBandLevel(levels: number[]): Promise<void> {
+  if (!isSetupedPlayer) return Promise.resolve()
+  return TrackPlayer.setEqualizerBandLevel(levels)
+}
+
+async function getEqualizerBandLevel(): Promise<number[]> {
+  if (!isSetupedPlayer) return Promise.resolve([])
+  return TrackPlayer.getEqualizerBandLevel()
+}
+
+async function setCrossfadeDuration(seconds: number): Promise<void> {
+  if (!isSetupedPlayer) return Promise.resolve()
+  return TrackPlayer.setCrossfadeDuration(seconds)
+}
+
+async function getCrossfadeDuration(): Promise<number> {
+  if (!isSetupedPlayer) return Promise.resolve(0)
+  return TrackPlayer.getCrossfadeDuration()
+}
+
 async function setRepeatMode(mode: RepeatMode): Promise<RepeatMode> {
   return TrackPlayer.setRepeatMode(mode)
 }
@@ -296,11 +326,15 @@ export default {
   seekTo,
   setVolume,
   setRate,
+  setPitch,
   setRepeatMode,
+  setEqualizerBandLevel,
+  setCrossfadeDuration,
 
   // MARK: - Getters
   getVolume,
   getRate,
+  getPitch,
   getTrack,
   getQueue,
   getCurrentTrack,
@@ -309,6 +343,8 @@ export default {
   getPosition,
   getState,
   getRepeatMode,
+  getEqualizerBandLevel,
+  getCrossfadeDuration,
   isCached,
   getCacheSize,
   clearCache,

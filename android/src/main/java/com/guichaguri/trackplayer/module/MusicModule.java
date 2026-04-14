@@ -20,6 +20,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.WritableArray;
 import androidx.media3.common.C;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
@@ -427,6 +428,56 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
     @ReactMethod
     public void getRate(final Promise callback) {
         waitForConnection(() -> callback.resolve(binder.getPlayback().getRate()));
+    }
+
+    @ReactMethod
+    public void setPitch(final float pitch, final Promise callback) {
+        waitForConnection(() -> {
+            binder.getPlayback().setPitch(pitch);
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void getPitch(final Promise callback) {
+        waitForConnection(() -> callback.resolve(binder.getPlayback().getPitch()));
+    }
+
+    @ReactMethod
+    public void setEqualizerBandLevel(final ReadableArray levels, final Promise callback) {
+        waitForConnection(() -> {
+            float[] levelArray = new float[levels.size()];
+            for (int i = 0; i < levels.size(); i++) {
+                levelArray[i] = (float) levels.getDouble(i);
+            }
+            binder.getPlayback().setEqualizerBandLevel(levelArray);
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void getEqualizerBandLevel(final Promise callback) {
+        waitForConnection(() -> {
+            float[] levels = binder.getPlayback().getEqualizerBandLevel();
+            WritableArray array = Arguments.createArray();
+            for (float level : levels) {
+                array.pushDouble(level);
+            }
+            callback.resolve(array);
+        });
+    }
+
+    @ReactMethod
+    public void setCrossfadeDuration(final float seconds, final Promise callback) {
+        waitForConnection(() -> {
+            binder.getPlayback().setCrossfadeDuration(seconds);
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void getCrossfadeDuration(final Promise callback) {
+        waitForConnection(() -> callback.resolve(binder.getPlayback().getCrossfadeDuration()));
     }
 
     @ReactMethod
