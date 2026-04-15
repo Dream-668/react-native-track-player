@@ -211,6 +211,11 @@ async function getEqualizerBandLevel(): Promise<number[]> {
   return TrackPlayer.getEqualizerBandLevel()
 }
 
+async function setEqualizerEnabled(enabled: boolean): Promise<void> {
+  if (!isSetupedPlayer) return Promise.resolve()
+  return TrackPlayer.setEqualizerEnabled(enabled)
+}
+
 async function setCrossfadeDuration(seconds: number): Promise<void> {
   if (!isSetupedPlayer) return Promise.resolve()
   return TrackPlayer.setCrossfadeDuration(seconds)
@@ -329,6 +334,7 @@ export default {
   setPitch,
   setRepeatMode,
   setEqualizerBandLevel,
+  setEqualizerEnabled,
   setCrossfadeDuration,
 
   // MARK: - Getters
