@@ -12,6 +12,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.database.DatabaseProvider;
 import androidx.media3.database.StandaloneDatabaseProvider;
@@ -53,6 +54,8 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     private long crossfadeDurationMs = 0;
     private float basePlayerVolume = 1.0f;
     private boolean fadingOut = false;
+    private boolean fadingIn = false;
+    private TrackSelectionParameters.AudioOffloadPreferences savedAudioOffloadPreferences = null;
     private final Handler fadeHandler = new Handler(Looper.getMainLooper());
     private Runnable positionCheckRunnable;
     private Runnable fadeRunnable;
@@ -277,7 +280,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
     @Override
     public float getPlayerVolume() {
-        return player.getVolume();
+        return basePlayerVolume;
     }
 
     @Override
@@ -327,6 +330,29 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
         if (crossfadeDurationMs == 0) {
             cancelFades();
             stopPositionMonitor();
+            if (savedAudioOffloadPreferences != null) {
+                player.setTrackSelectionParameters(
+                    player.getTrackSelectionParameters().buildUpon()
+                        .setAudioOffloadPreferences(savedAudioOffloadPreferences)
+                        .build());
+                savedAudioOffloadPreferences = null;
+            }
+        } else {
+            if (savedAudioOffloadPreferences == null) {
+                savedAudioOffloadPreferences =
+                    player.getTrackSelectionParameters().audioOffloadPreferences;
+            }
+            player.setTrackSelectionParameters(
+                player.getTrackSelectionParameters().buildUpon()
+                    .setAudioOffloadPreferences(
+                        new TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                            .setAudioOffloadMode(
+                                TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED)
+                            .build())
+                    .build());
+            if (player.getPlayWhenReady()) {
+                startPositionMonitor();
+            }
         }
     }
 
@@ -335,10 +361,10 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
         positionCheckRunnable = new Runnable() {
             @Override
             public void run() {
-                if (!fadingOut && player.getPlayWhenReady()) {
-                    long duration = player.getDuration();
+                if (!fadingOut && !fadingIn && player.getPlayWhenReady()) {
+                    long duration = getDuration();
                     long position = player.getCurrentPosition();
-                    if (duration != C.TIME_UNSET && duration > 0) {
+                    if (duration > 0) {
                         long timeRemaining = duration - position;
                         if (timeRemaining > 0 && timeRemaining <= crossfadeDurationMs) {
                             startFadeOut(timeRemaining);
@@ -361,10 +387,15 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     }
 
     private void startFadeOut(long remainingMs) {
+        if (remainingMs <= 0) {
+            player.setVolume(0);
+            stopPositionMonitor();
+            return;
+        }
         fadingOut = true;
         cancelFadeRunnable();
-
-        final float fromVolume = player.getVolume();
+        
+        final float fromVolume = basePlayerVolume;
         final long startTime = System.currentTimeMillis();
         fadeRunnable = new Runnable() {
             @Override
@@ -377,6 +408,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
                 } else {
                     player.setVolume(0);
                     fadingOut = false;
+                    stopPositionMonitor();
                 }
             }
         };
@@ -385,6 +417,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
     private void startFadeIn() {
         fadingOut = false;
+        fadingIn = true;
         cancelFadeRunnable();
         player.setVolume(0);
         final long startTime = System.currentTimeMillis();
@@ -398,6 +431,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
                     fadeHandler.postDelayed(this, FADE_INTERVAL_MS);
                 } else {
                     player.setVolume(basePlayerVolume);
+                    fadingIn = false;
                 }
             }
         };
@@ -414,6 +448,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
     private void cancelFades() {
         fadingOut = false;
+        fadingIn = false;
         cancelFadeRunnable();
         player.setVolume(basePlayerVolume);
     }
