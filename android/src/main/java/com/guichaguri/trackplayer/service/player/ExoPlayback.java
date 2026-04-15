@@ -259,6 +259,10 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
         // No-op by default; overridden in LocalPlayback
     }
 
+    public void setEqualizerEnabled(boolean enabled) {
+        // No-op by default; overridden in LocalPlayback
+    }
+
     public float getCrossfadeDuration() {
         return 0f;
     }

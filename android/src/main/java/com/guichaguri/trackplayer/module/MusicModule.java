@@ -468,6 +468,14 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
     }
 
     @ReactMethod
+    public void setEqualizerEnabled(final boolean enabled, final Promise callback) {
+        waitForConnection(() -> {
+            binder.getPlayback().setEqualizerEnabled(enabled);
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
     public void setCrossfadeDuration(final float seconds, final Promise callback) {
         waitForConnection(() -> {
             binder.getPlayback().setCrossfadeDuration(seconds);

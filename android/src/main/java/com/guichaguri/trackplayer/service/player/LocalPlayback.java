@@ -47,6 +47,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     private boolean prepared = false;
     private Equalizer equalizer;
     private float[] pendingEqualizerLevels;
+    private boolean pendingEnabled = true;
     private short equalizerNumBands;
     private short[] equalizerBandLevelRange;
 
@@ -81,18 +82,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
         int audioSessionId = player.getAudioSessionId();
         if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
-            try {
-                equalizer = new Equalizer(0, audioSessionId);
-                equalizer.setEnabled(true);
-                equalizerNumBands = equalizer.getNumberOfBands();
-                equalizerBandLevelRange = equalizer.getBandLevelRange();
-                if (pendingEqualizerLevels != null) {
-                    applyEqualizerLevels(pendingEqualizerLevels);
-                    pendingEqualizerLevels = null;
-                }
-            } catch (Exception e) {
-                Log.e(Utils.LOG, "Failed to create equalizer", e);
-            }
+            initEqualizer(audioSessionId);
         }
 
         resetQueue();
@@ -481,6 +471,36 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     @Override
     public int getAudioSessionId() {
         return player.getAudioSessionId();
+    }
+
+    @Override
+    public void onAudioSessionIdChanged(int audioSessionId) {
+        if (equalizer == null && audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+            initEqualizer(audioSessionId);
+        }
+    }
+
+    private void initEqualizer(int audioSessionId) {
+        try {
+            equalizer = new Equalizer(0, audioSessionId);
+            equalizer.setEnabled(pendingEnabled);
+            equalizerNumBands = equalizer.getNumberOfBands();
+            equalizerBandLevelRange = equalizer.getBandLevelRange();
+            if (pendingEqualizerLevels != null) {
+                applyEqualizerLevels(pendingEqualizerLevels);
+                pendingEqualizerLevels = null;
+            }
+        } catch (Exception e) {
+            Log.e(Utils.LOG, "Failed to create equalizer", e);
+        }
+    }
+
+    @Override
+    public void setEqualizerEnabled(boolean enabled) {
+        pendingEnabled = enabled;
+        if (equalizer != null) {
+            equalizer.setEnabled(enabled);
+        }
     }
 
     @Override
