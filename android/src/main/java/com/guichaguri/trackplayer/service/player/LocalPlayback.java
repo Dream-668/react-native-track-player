@@ -228,6 +228,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
     @Override
     public void play() {
+        cancelFades();
         prepare();
         super.play();
         if (crossfadeDurationMs > 0) startPositionMonitor();
@@ -283,7 +284,8 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
         super.onMediaItemTransition(mediaItem, reason);
         if (crossfadeDurationMs > 0) {
-            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
+                reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
                 startFadeIn();
             } else {
                 cancelFades();
@@ -296,7 +298,6 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
         if (playbackState == Player.STATE_ENDED) {
             prepared = false;
             if (crossfadeDurationMs > 0) {
-                cancelFades();
                 stopPositionMonitor();
             }
         }
