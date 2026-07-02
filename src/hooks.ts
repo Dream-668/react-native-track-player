@@ -47,7 +47,7 @@ type Handler = (payload: { type: Event; [key: string]: any }) => void
  * @param handler - callback invoked when the event fires
  */
 export const useTrackPlayerEvents = (events: Event[], handler: Handler) => {
-  const savedHandler = useRef<Handler>()
+  const savedHandler = useRef<Handler | undefined>(undefined)
 
   useEffect(() => {
     savedHandler.current = handler
