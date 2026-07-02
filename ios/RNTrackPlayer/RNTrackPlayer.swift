@@ -18,6 +18,11 @@ public class RNTrackPlayer: RCTEventEmitter {
     private var hasInitialized = false
     private let player = QueuedAudioPlayer()
 
+    private var pitchValue: Float = 1.0
+    private var equalizerEnabled: Bool = false
+    private var equalizerLevels: [Float] = []
+    private var crossfadeDuration: Float = 0.0
+
     // MARK: - Lifecycle Methods
 
     public override init() {
@@ -473,6 +478,78 @@ public class RNTrackPlayer: RCTEventEmitter {
     public func getRate(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
         print("Getting current rate")
         resolve(player.rate)
+    }
+
+    @objc(setPitch:resolver:rejecter:)
+    public func setPitch(pitch: Float, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        pitchValue = pitch
+        // iOS does not support pitch adjustment via SwiftAudioEx; stored only
+        resolve(NSNull())
+    }
+
+    @objc(getPitch:rejecter:)
+    public func getPitch(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        resolve(pitchValue)
+    }
+
+    @objc(setEqualizerBandLevel:resolver:rejecter:)
+    public func setEqualizerBandLevel(levels: [Float], resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        equalizerLevels = levels
+        equalizerEnabled = true
+        resolve(NSNull())
+    }
+
+    @objc(getEqualizerBandLevel:rejecter:)
+    public func getEqualizerBandLevel(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        resolve(equalizerLevels)
+    }
+
+    @objc(setEqualizerEnabled:resolver:rejecter:)
+    public func setEqualizerEnabled(enabled: Bool, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        equalizerEnabled = enabled
+        resolve(NSNull())
+    }
+
+    @objc(setCrossfadeDuration:resolver:rejecter:)
+    public func setCrossfadeDuration(seconds: Float, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        crossfadeDuration = seconds
+        resolve(NSNull())
+    }
+
+    @objc(getCrossfadeDuration:rejecter:)
+    public func getCrossfadeDuration(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        resolve(crossfadeDuration)
+    }
+
+    @objc(isCached:resolver:rejecter:)
+    public func isCached(url: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        resolve(false)
+    }
+
+    @objc(getCacheSize:rejecter:)
+    public func getCacheSize(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        resolve(0)
+    }
+
+    @objc(clearCache:rejecter:)
+    public func clearCache(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        resolve(NSNull())
+    }
+
+    @objc(getAudioSessionId:rejecter:)
+    public func getAudioSessionId(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        resolve(0)
+    }
+
+    @objc(updateNowPlayingTitles:title:artist:album:resolver:rejecter:)
+    public func updateNowPlayingTitles(duration: Double, title: String, artist: String, album: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        var metadata: [String: Any] = [:]
+        metadata["duration"] = duration
+        metadata["title"] = title
+        metadata["artist"] = artist
+        metadata["album"] = album
+        Metadata.update(for: player, with: metadata)
+        resolve(NSNull())
     }
 
     @objc(getTrack:resolver:rejecter:)
